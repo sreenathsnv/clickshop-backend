@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring comment="Copy package &apos;com.trivium.util&apos; to &apos;ProductMicroservice/src/main/java&apos;&#x0D;&#x0A;- Original project: &apos;AuthManagerMicroservice&apos;&#x0D;&#x0A;- Destination element: &apos;ProductMicroservice/src/main/java&apos;&#x0D;&#x0A;- Original element: &apos;AuthManagerMicroservice/src/main/java/com.trivium.util&apos;" description="Copy package" destination="=ProductMicroservice/src\/main\/java=/optional=/true=/=/maven.pomderived=/true=/" element1="/src\/main\/java=/optional=/true=/=/maven.pomderived=/true=/&lt;com.trivium.util" flags="589830" fragments="1" id="org.eclipse.jdt.ui.copy" policy="org.eclipse.jdt.ui.copyPackages" stamp="1743999721160" version="1.0"/>
+</session>

@@ -1,0 +1,67 @@
+package com.trivium.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.trivium.dto.ReviewRequest;
+import com.trivium.dto.ReviewResponse;
+import com.trivium.service.ReviewService;
+
+@CrossOrigin(origins = "http://localhost:4200")
+@RestController
+@RequestMapping("/user/review")
+public class ReviewController {
+
+    @Autowired
+    private ReviewService reviewService;
+
+    @PostMapping("/{productId}")
+    public ResponseEntity<ReviewResponse> addReview(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long productId,
+            @RequestBody ReviewRequest request) {
+        ReviewResponse response = reviewService.addReview(token, productId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{reviewId}")
+    public ResponseEntity<ReviewResponse> editReview(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long reviewId,
+            @RequestBody ReviewRequest request) {
+        ReviewResponse response = reviewService.editReview(reviewId, token, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{reviewId}")
+    public ResponseEntity<Void> deleteReview(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long reviewId) {
+        reviewService.deleteReview(reviewId, token);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/product/{productId}")
+    public ResponseEntity<List<ReviewResponse>> getReviewsByProduct(
+            @RequestHeader("Authorization") String token,
+            @PathVariable Long productId) {
+        List<ReviewResponse> responses = reviewService.getReviewsByProduct(productId, token);
+        return ResponseEntity.ok(responses);
+    }
+
+    @GetMapping("/user/{reviewUserId}")
+    public ResponseEntity<List<ReviewResponse>> getReviewsByUser(
+            @RequestHeader("Authorization") String token,
+            @PathVariable String reviewUserId) {
+        List<ReviewResponse> responses = reviewService.getReviewsByUser(reviewUserId, token);
+        return ResponseEntity.ok(responses);
+    }
+}
+

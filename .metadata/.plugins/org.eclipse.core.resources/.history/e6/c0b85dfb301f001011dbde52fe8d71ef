@@ -1,0 +1,27 @@
+package com.trivium.entity;
+
+import jakarta.persistence.Entity;
+
+@Entity
+public class UserReview {
+	
+	@Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private Long userId;
+
+    private Long productId;
+
+    @Min(1)
+    @Max(5)
+    private int rating;
+
+    private String comment;
+
+    private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
+
+
+}

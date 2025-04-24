@@ -1,0 +1,9 @@
+package com.trivium.controller;
+
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("path", method=RequestMethod.GET)
+public class ReviewController {
+
+}

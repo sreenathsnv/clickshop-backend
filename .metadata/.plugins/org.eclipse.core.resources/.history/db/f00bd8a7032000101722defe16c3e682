@@ -1,0 +1,90 @@
+	package com.trivium.controller;
+	
+	import com.trivium.dto.ProductStatsDTO;
+	import com.trivium.entity.Product;
+	import com.trivium.service.ProductService;
+	import org.springframework.beans.factory.annotation.Autowired;
+	import org.springframework.http.ResponseEntity;
+	import org.springframework.web.bind.annotation.*;
+	
+	import java.util.List;
+	
+	
+	@CrossOrigin(origins = "http://localhost:4200")
+	@RestController
+	@RequestMapping("/api/products")
+	public class ProductController {
+	
+	    @Autowired
+	    private ProductService productService;
+	
+	    @GetMapping
+	    public ResponseEntity<List<Product>> getAll() {
+	        // No role-based restriction (publicly accessible)
+	        return ResponseEntity.ok(productService.getAllProducts());
+	    }
+	
+	    @GetMapping("/{id}")
+	    public ResponseEntity<Product> getById(@PathVariable Long id) {
+	        // No role-based restriction (publicly accessible)
+	        return productService.getProductById(id)
+	                .map(ResponseEntity::ok)
+	                .orElse(ResponseEntity.notFound().build());
+	    }
+	
+	    @PostMapping
+	    public ResponseEntity<Product> create(@RequestBody Product product,
+	                                          @RequestHeader("Authorization") String token) {
+	        // Requires ADMIN role, enforced in ProductService
+	        try {
+	            Product createdProduct = productService.createProduct(product, token);
+	            System.out.println("crerated");
+	            return ResponseEntity.ok(createdProduct);
+	        } catch (RuntimeException e) {
+	        	System.out.println("forbidden");
+	            return ResponseEntity.status(403).body(null); // Forbidden if unauthorized
+	        }
+	    }
+	
+	    @PutMapping("/{id}")
+	    public ResponseEntity<Product> update(@PathVariable Long id,
+	                                          @RequestBody Product product,
+	                                          @RequestHeader("Authorization") String token) {
+	        // Requires ADMIN role, enforced in ProductService
+	        try {
+	            Product updatedProduct = productService.updateProduct(id, product, token);
+	            return ResponseEntity.ok(updatedProduct);
+	        } catch (RuntimeException e) {
+	            return ResponseEntity.status(403).body(null); // Forbidden if unauthorized
+	        }
+	    }
+	
+	    @DeleteMapping("/{id}")
+	    public ResponseEntity<Void> delete(@PathVariable Long id,
+	                                       @RequestHeader("Authorization") String token) {
+	        // Requires ADMIN role, enforced in ProductService
+	        try {
+	            productService.deleteProduct(id, token);
+	            return ResponseEntity.noContent().build();
+	        } catch (RuntimeException e) {
+	            return ResponseEntity.status(403).build();
+	        }
+	    }
+	    @GetMapping("/stats")
+	    public ResponseEntity<ProductStatsDTO> getProductStats(@RequestHeader("Authorization") String token) {
+	        return ResponseEntity.ok(productService.getProductStatistics(token));
+	    }
+	    @GetMapping("/search")
+	    public ResponseEntity<List<Product>> searchProducts(
+	            @RequestParam("query") String query)
+	            {
+	        return ResponseEntity.ok(productService.searchProducts(query));
+	    }
+	    
+	    @GetMapping("/categories")
+	    public ResponseEntity<List<String>> getAvailableCategories() {
+	        List<String> categories = productService.getAvailableCategories();
+	        
+	        return ResponseEntity.ok(categories);
+	    }
+	}

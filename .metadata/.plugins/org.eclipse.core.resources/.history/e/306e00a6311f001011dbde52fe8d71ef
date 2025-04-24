@@ -1,0 +1,5 @@
+package com.trivium.dto;
+
+public class ReviewRequest {
+
+}

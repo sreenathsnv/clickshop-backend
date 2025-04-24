@@ -1,0 +1,5 @@
+package com.trivium.repo;
+
+public interface UserReviewRepository implement {
+
+}

@@ -1,0 +1,293 @@
+package com.trivium.controller;
+
+import com.trivium.dto.AuthRequest;
+import com.trivium.dto.AuthResponse;
+import com.trivium.dto.UserDTO;
+import com.trivium.entity.Address;
+import com.trivium.entity.User;
+import com.trivium.service.UserService;
+import com.trivium.util.JWTUtil;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import org.apache.hc.core5.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.*;
+
+@CrossOrigin(origins = "http://localhost:4200")
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+    
+    @Autowired
+    private AuthenticationManager authenticationManager;
+    
+    @Autowired
+    private UserService userService;
+    
+    @Autowired
+    private JWTUtil jwtUtil;
+
+    @GetMapping("")
+    public String test() {
+        return new String("Auth is running...");
+    }
+    
+    @PostMapping("/register")
+    public ResponseEntity<UserDTO> register(@RequestBody UserDTO userDTO) {
+        User user = userService.registerUser(
+            userDTO.getUsername(),
+            userDTO.getPassword(),
+            userDTO.getEmail(),
+            userDTO.getRole(),
+            userDTO.getHouseName(),
+            userDTO.getStreet(),
+            userDTO.getDistrict(),
+            userDTO.getState(),
+            userDTO.getZipcode()
+        );
+
+        UserDTO responseDTO = new UserDTO();
+        responseDTO.setId(user.getId());
+        responseDTO.setUsername(user.getUsername());
+        responseDTO.setEmail(user.getEmail());
+        responseDTO.setRole(user.getRole());
+
+        // Set address fields if available
+        if (user.getAddress() != null) {
+            responseDTO.setHouseName(user.getAddress().getHouseName());
+            responseDTO.setStreet(user.getAddress().getStreet());
+            responseDTO.setDistrict(user.getAddress().getDistrict());
+            responseDTO.setState(user.getAddress().getState());
+            responseDTO.setZipcode(user.getAddress().getZipcode());
+        }
+
+        return ResponseEntity.ok(responseDTO);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<AuthResponse> login(@RequestBody AuthRequest authRequest) {
+        Authentication authentication = authenticationManager.authenticate(
+            new UsernamePasswordAuthenticationToken(
+                authRequest.getUsername(),
+                authRequest.getPassword()
+            )
+        );
+        
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        String token = jwtUtil.generateToken(userService.loadUserByUsername(authRequest.getUsername()));
+        return ResponseEntity.ok(new AuthResponse(token));
+    }
+
+    @GetMapping("/profile")
+    public ResponseEntity<UserDTO> getProfile() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userService.findByUsername(username)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+            
+        UserDTO userDTO = new UserDTO();
+        userDTO.setId(user.getId());
+        userDTO.setUsername(user.getUsername());
+        userDTO.setEmail(user.getEmail());
+        userDTO.setRole(user.getRole());
+
+        // Set address fields if available
+        if (user.getAddress() != null) {
+            userDTO.setHouseName(user.getAddress().getHouseName());
+            userDTO.setStreet(user.getAddress().getStreet());
+            userDTO.setDistrict(user.getAddress().getDistrict());
+            userDTO.setState(user.getAddress().getState());
+            userDTO.setZipcode(user.getAddress().getZipcode());
+        }
+
+        return ResponseEntity.ok(userDTO);
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<UserDTO> updateProfile(@RequestBody UserDTO userDTO) {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userService.findByUsername(username)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Only update fields that are allowed
+        user.setEmail(userDTO.getEmail());
+        
+        Address addr = user.getAddress();
+        System.out.println(addr);
+        if(addr != null) {
+
+            if (userDTO.getHouseName() != null) user.getAddress().setHouseName(userDTO.getHouseName());
+            if (userDTO.getStreet() != null) user.getAddress().setStreet(userDTO.getStreet());
+            if (userDTO.getDistrict() != null) user.getAddress().setDistrict(userDTO.getDistrict());
+            if (userDTO.getState() != null) user.getAddress().setState(userDTO.getState());
+            if (userDTO.getZipcode() != null) user.getAddress().setZipcode(userDTO.getZipcode());
+
+        }
+        User updatedUser = userService.updateUser(user);
+        
+        UserDTO responseDTO = new UserDTO();
+        responseDTO.setId(updatedUser.getId());
+        responseDTO.setUsername(updatedUser.getUsername());
+        responseDTO.setEmail(updatedUser.getEmail());
+        responseDTO.setRole(updatedUser.getRole());
+
+        // Set updated address fields if available
+        if (updatedUser.getAddress() != null) {
+            responseDTO.setHouseName(updatedUser.getAddress().getHouseName());
+            responseDTO.setStreet(updatedUser.getAddress().getStreet());
+            responseDTO.setDistrict(updatedUser.getAddress().getDistrict());
+            responseDTO.setState(updatedUser.getAddress().getState());
+            responseDTO.setZipcode(updatedUser.getAddress().getZipcode());
+        }
+
+        return ResponseEntity.ok(responseDTO);
+    }
+
+    @PutMapping("/users/{username}")
+    public ResponseEntity<?> updateUserByAdmin(@PathVariable String username, @RequestBody UserDTO userDTO) {
+        Optional<User> existingUserOpt = userService.findByUsername(username);
+        if (existingUserOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.SC_NOT_FOUND).body("User not found");
+        }
+
+        User user = existingUserOpt.get();
+
+        // Check for duplicate email
+        Optional<User> userWithEmail = userService.findByEmail(userDTO.getEmail());
+        if (userWithEmail.isPresent() && !userWithEmail.get().getId().) {
+            return ResponseEntity.status(HttpStatus.SC_CONFLICT).body("Email already in use by another user.");
+        }
+
+        // Update allowed fields
+        if (userDTO.getEmail() != null) user.setEmail(userDTO.getEmail());
+        if (userDTO.getUsername() != null) user.setUsername(userDTO.getUsername());
+        if (userDTO.getRole() != null) user.setRole(userDTO.getRole());
+
+        // Update address
+        if (user.getAddress() == null) {
+            user.setAddress(new Address());
+        }
+
+        Address addr = user.getAddress();
+        if (userDTO.getHouseName() != null) addr.setHouseName(userDTO.getHouseName());
+        if (userDTO.getStreet() != null) addr.setStreet(userDTO.getStreet());
+        if (userDTO.getDistrict() != null) addr.setDistrict(userDTO.getDistrict());
+        if (userDTO.getState() != null) addr.setState(userDTO.getState());
+        if (userDTO.getZipcode() != null) addr.setZipcode(userDTO.getZipcode());
+
+        User updatedUser = userService.updateUser(user);
+
+        UserDTO responseDTO = new UserDTO();
+        responseDTO.setId(updatedUser.getId());
+        responseDTO.setUsername(updatedUser.getUsername());
+        responseDTO.setEmail(updatedUser.getEmail());
+        responseDTO.setRole(updatedUser.getRole());
+
+        if (updatedUser.getAddress() != null) {
+            responseDTO.setHouseName(updatedUser.getAddress().getHouseName());
+            responseDTO.setStreet(updatedUser.getAddress().getStreet());
+            responseDTO.setDistrict(updatedUser.getAddress().getDistrict());
+            responseDTO.setState(updatedUser.getAddress().getState());
+            responseDTO.setZipcode(updatedUser.getAddress().getZipcode());
+        }
+
+        return ResponseEntity.ok(responseDTO);
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<String> resetPassword(@RequestParam String email, 
+                                               @RequestParam String newPassword) {
+        userService.resetPassword(email, newPassword);
+        return ResponseEntity.ok("Password reset successfully");
+    }
+
+    @GetMapping("/validate")
+    public ResponseEntity<Map<String, Object>> validateToken(@RequestHeader("Authorization") String authHeader) {
+        Map<String, Object> response = new HashMap<>();
+
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            response.put("valid", false);
+            return ResponseEntity.ok(response);
+        }
+
+        String token = authHeader.substring(7);
+        String username = jwtUtil.extractUsername(token);
+
+        if (username != null) {
+            UserDetails userDetails = userService.loadUserByUsername(username);
+            boolean isValid = jwtUtil.validateToken(token, userDetails);
+
+            if (isValid) {
+                User user = userService.findByUsername(username).orElse(null);
+                if (user != null) {
+                    response.put("username", user.getUsername());
+                    response.put("role", user.getRole());
+                    response.put("valid", true);
+                    return ResponseEntity.ok(response);
+                }
+            }
+        }
+
+        response.put("valid", false);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/all-users")
+    public ResponseEntity<?> getAllUsers(@RequestHeader("Authorization") String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(401).body("Missing or invalid Authorization header");
+        }
+
+        String token = authHeader.substring(7); // remove "Bearer "
+        String username;
+
+        try {
+            username = jwtUtil.extractUsername(token);
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body("Invalid JWT token");
+        }
+
+        User user = userService.findByUsername(username)
+                .orElse(null);
+
+        if (user == null || !jwtUtil.validateToken(token, userService.loadUserByUsername(username))) {
+            return ResponseEntity.status(401).body("Invalid or expired token");
+        }
+
+        if (!"ADMIN".equals(user.getRole())) {
+            return ResponseEntity.status(403).body("Access denied: Only admins can view all users.");
+        }
+
+        List<User> users = userService.getAllUsers();
+
+        List<UserDTO> userDTOs = users.stream().map(u -> {
+            UserDTO dto = new UserDTO();
+            dto.setId(u.getId());
+            dto.setUsername(u.getUsername());
+            dto.setEmail(u.getEmail());
+            dto.setRole(u.getRole());
+            // Set address fields if available
+            if (u.getAddress() != null) {
+                dto.setHouseName(u.getAddress().getHouseName());
+                dto.setStreet(u.getAddress().getStreet());
+                dto.setDistrict(u.getAddress().getDistrict());
+                dto.setState(u.getAddress().getState());
+                dto.setZipcode(u.getAddress().getZipcode());
+            }
+            return dto;
+        }).toList();
+        
+        return ResponseEntity.ok(userDTOs);
+    }
+}

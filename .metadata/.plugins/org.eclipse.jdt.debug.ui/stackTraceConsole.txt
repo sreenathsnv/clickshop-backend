@@ -1,0 +1,24 @@
+@GetMapping("/all-users")
+public ResponseEntity<?> getAllUsers() {
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+    boolean isAdmin = authentication.getAuthorities().stream()
+            .anyMatch(auth -> auth.getAuthority().equals("ROLE_ADMIN"));
+
+    if (!isAdmin) {
+        return ResponseEntity.status(403).body("Access denied: Only admins can view all users.");
+    }
+
+    List<User> users = userService.getAllUsers();
+
+    List<UserDTO> userDTOs = users.stream().map(user -> {
+        UserDTO dto = new UserDTO();
+        dto.setId(user.getId());
+        dto.setUsername(user.getUsername());
+        dto.setEmail(user.getEmail());
+        dto.setRole(user.getRole());
+        return dto;
+    }).toList();
+
+    return ResponseEntity.ok(userDTOs);
+}

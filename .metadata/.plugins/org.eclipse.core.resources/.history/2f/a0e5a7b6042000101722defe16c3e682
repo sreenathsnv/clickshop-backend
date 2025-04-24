@@ -1,0 +1,20 @@
+package com.trivium.service;
+
+
+import com.trivium.dto.ProductStatsDTO;
+import com.trivium.entity.Product;
+import java.util.List;
+import java.util.Optional;
+
+public interface ProductService {
+
+	List<Product> getAllProducts();
+    Optional<Product> getProductById(Long id);
+    Product createProduct(Product product, String token);
+    Product updateProduct(Long id, Product updated, String token);
+    void deleteProduct(Long id, String token);
+    public ProductStatsDTO getProductStatistics(String token);
+    public List<Product> searchProducts(String str);
+    List<String> getAvailableCategories();
+	void reduceQuantity(Long id, int amount, String token);
+}

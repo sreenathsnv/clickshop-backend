@@ -1,0 +1,108 @@
+package com.trivium.service;
+
+import com.trivium.dto.AuthValidationResponse;
+import com.trivium.dto.ProductDTO;
+import com.trivium.entity.CartItem;
+import com.trivium.repo.CartRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+public class CartServiceImpl implements CartService {
+
+    @Autowired
+    private CartRepository cartItemRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Value("${auth.service.url}")
+    private String AUTH_SERVICE_URL;
+
+    @Value("${product.service.url}")
+    private String PRODUCT_SERVICE_URL;
+
+    // --- Updated to return username ---
+    public String authorizeAndGetUsername(String token, String requiredRole) {
+        if (token == null || !token.startsWith("Bearer ")) {
+            throw new RuntimeException("Invalid or missing authorization token");
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", token);
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<AuthValidationResponse> response = restTemplate.exchange(
+                AUTH_SERVICE_URL + "/api/auth/validate",
+                HttpMethod.GET,
+                entity,
+                AuthValidationResponse.class
+        );
+
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new RuntimeException("Token validation failed");
+        }
+
+        AuthValidationResponse authResponse = response.getBody();
+        if (!authResponse.isValid() || !requiredRole.equals(authResponse.getRole())) {
+            throw new RuntimeException("Unauthorized: Requires " + requiredRole + " role");
+        }
+
+        return authResponse.getUsername(); // ✅ Return username instead of userId
+    }
+
+    // --- Updated methods to use username ---
+    @Override
+    public List<CartItem> getCartItems(String username) {
+        return cartItemRepository.findByUsername(username);
+    }
+
+    @Override
+    public CartItem addToCart(String username, Long productId, int quantity) {
+        ProductDTO product = restTemplate.getForObject(PRODUCT_SERVICE_URL + "/api/products/" + productId, ProductDTO.class);
+        if (product == null || product.getId() == null) {
+            throw new RuntimeException("Product not found");
+        }
+
+        CartItem item = new CartItem();
+        item.setUsername(username);
+        item.setProductId(productId);
+        item.setProductName(product.getName());
+        item.setPrice(product.getPrice());
+        item.setQuantity(quantity);
+        return cartItemRepository.save(item);
+    }
+
+    @Override
+    public void removeFromCart(String username, Long productId) {
+        cartItemRepository.deleteByUsernameAndProductId(username, productId);
+    }
+
+    @Override
+    public double calculateTotalAmount(String username) {
+        List<CartItem> items = cartItemRepository.findByUsername(username);
+        return items.stream().mapToDouble(item -> item.getPrice() * item.getQuantity()).sum();
+    }
+
+    @Override
+    public Map<String, Double> calculateAmountPerItemGroup(String username) {
+        List<CartItem> items = cartItemRepository.findByUsername(username);
+        return items.stream()
+                .collect(Collectors.groupingBy(
+                        CartItem::getProductName,
+                        Collectors.summingDouble(i -> i.getPrice() * i.getQuantity())
+                ));
+    }
+
+	@Override
+	public CartItem updateCartItemQuantity(String token, Long productId, int quantity) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+}

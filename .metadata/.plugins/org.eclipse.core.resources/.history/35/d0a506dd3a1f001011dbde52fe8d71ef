@@ -1,0 +1,19 @@
+package com.trivium.service;
+
+import java.util.List;
+
+import com.trivium.dto.ReviewRequest;
+import com.trivium.dto.ReviewResponse;
+
+public interface ReviewService {
+
+    ReviewResponse addReview(String token, Long productId, ReviewRequest request);
+
+    ReviewResponse editReview(Long reviewId, String token, ReviewRequest request);
+
+    void deleteReview(Long reviewId, String token);
+
+    List<ReviewResponse> getReviewsByProduct(Long productId, String token);
+
+    List<ReviewResponse> getReviewsByUser(String reviewUserId, String token);
+}

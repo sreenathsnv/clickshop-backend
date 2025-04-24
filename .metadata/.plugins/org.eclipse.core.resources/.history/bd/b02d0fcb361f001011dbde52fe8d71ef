@@ -1,0 +1,104 @@
+package com.trivium.service;
+
+import java.time.LocalDateTime;
+
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import com.trivium.dto.ReviewRequest;
+import com.trivium.dto.ReviewResponse;
+import com.trivium.entity.UserReview;
+import com.trivium.repo.UserReviewRepository;
+
+
+
+
+@Service
+public class ReviewServiceImpl {
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+	
+    @Autowired
+    private UserReviewRepository reviewRepo;
+
+    private static final String AUTH_SERVICE_URL = "http://localhost:8183/api/auth/validate";
+
+    private static class AuthValidationResponse {
+        private String username;
+        private String role;
+        private boolean valid;
+
+        public String getUsername() { return username; }
+        public String getRole() { return role; }
+        public boolean isValid() { return valid; }
+        public void setUsername(String username) { this.username = username; }
+        public void setRole(String role) { this.role = role; }
+        public void setValid(boolean valid) { this.valid = valid; }
+    }
+
+    private String validateAndExtractUsername(String token) {
+        if (token == null || !token.startsWith("Bearer ")) {
+            throw new RuntimeException("Invalid or missing authorization token");
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", token);
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<AuthValidationResponse> response = restTemplate.exchange(
+                AUTH_SERVICE_URL,
+                HttpMethod.GET,
+                entity,
+                AuthValidationResponse.class
+        );
+
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || !response.getBody().isValid()) {
+            throw new RuntimeException("Token validation failed");
+        }
+
+        return response.getBody().getUsername();
+    }
+    
+    public ReviewResponse addReview(String token, Long productId, ReviewRequest request) {
+        String username = validateAndExtractUsername(token);
+
+        // 💡 Check if user has ordered this product with a non-cancelled status
+        if (!orderClient.hasCompletedValidOrder(username, productId)) {
+            throw new RuntimeException("User has not purchased or has canceled the order. Cannot review.");
+        }
+
+        UserReview review = new UserReview();
+        review.setUsername(username);
+        review.setProductId(productId);
+        review.setRating(request.getRating());
+        review.setComment(request.getComment());
+
+        reviewRepo.save(review);
+        return ReviewResponse.from(review, true);
+    }
+    public ReviewResponse editReview(Long reviewId, String token, ReviewRequest request) {
+        String username = validateAndExtractUsername(token);
+
+        UserReview review = reviewRepo.findById(reviewId)
+            .orElseThrow(() -> new RuntimeException("Review not found"));
+
+        if (!review.getUserName().equals(username)) {
+            throw new RuntimeException("You do not have permission to edit this review.");
+        }
+
+        review.setRating(request.getRating());
+        review.setComment(request.getComment());
+        reviewRepo.save(review);
+        return ReviewResponse.from(review, true);
+    }
+
+
+}

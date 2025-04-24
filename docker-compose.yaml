@@ -1,0 +1,130 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: 12345
+      MYSQL_DATABASE: appdb
+      MYSQL_USER: root
+      MYSQL_PASSWORD: 12345
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  eureka-server:
+    image: eureka-server:latest
+    build:
+      context: ./eureka-server
+      dockerfile: Dockerfile
+    ports:
+      - "8761:8761"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_APPLICATION_NAME: eureka-server
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  authmanagermicroservice:
+    image: authmanagermicroservice:latest
+    build:
+      context: ./authmanagermicroservice
+      dockerfile: Dockerfile
+    ports:
+      - "8183:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/appdb?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: appuser
+      SPRING_DATASOURCE_PASSWORD: appuserpassword
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_APPLICATION_NAME: AUTHMANAGERMICROSERVICE
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  cart-management:
+    image: cart-management:latest
+    build:
+      context: ./cart-management
+      dockerfile: Dockerfile
+    ports:
+      - "8184:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/appdb?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: appuser
+      SPRING_DATASOURCE_PASSWORD: appuserpassword
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_APPLICATION_NAME: CART-MANAGEMENT
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  order-management:
+    image: order-management:latest
+    build:
+      context: ./order-management
+      dockerfile: Dockerfile
+    ports:
+      - "8188:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/appdb?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: appuser
+      SPRING_DATASOURCE_PASSWORD: appuserpassword
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_APPLICATION_NAME: ORDER-MANAGEMENT
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  product-microservice:
+    image: product-microservice:latest
+    build:
+      context: ./product-microservice
+      dockerfile: Dockerfile
+    ports:
+      - "8185:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/appdb?useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: appuser
+      SPRING_DATASOURCE_PASSWORD: appuserpassword
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_APPLICATION_NAME: PRODUCT-MICROSERVICE
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - app-network
+
+volumes:
+  mysql-data:
+
+networks:
+  app-network:
+    driver: bridge

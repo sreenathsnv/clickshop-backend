@@ -1,0 +1,60 @@
+	package com.trivium.controller;
+	
+	import com.trivium.entity.CartItem;
+	import com.trivium.service.CartService;
+	import org.springframework.beans.factory.annotation.Autowired;
+	import org.springframework.web.bind.annotation.*;
+	
+	import java.util.List;
+	import java.util.Map;
+	
+	@CrossOrigin(origins = "http://localhost:4200")
+	@RestController
+	@RequestMapping("/api/cart")
+	public class CartController {
+	
+	    @Autowired
+	    private CartService cartService;
+	
+	    @PostMapping("/add")
+	    public CartItem addToCart(@RequestHeader("Authorization") String token,
+	                              @RequestParam Long productId,
+	                              @RequestParam int quantity) {
+	        String username = cartService.authorizeAndGetUsername(token, "CUSTOMER");
+	        return cartService.addToCart(username, productId, quantity);
+	    }
+	
+	    @GetMapping
+	    public List<CartItem> getCart(@RequestHeader("Authorization") String token) {
+	        String username = cartService.authorizeAndGetUsername(token, "CUSTOMER");
+	        return cartService.getCartItems(username);
+	    }
+	
+	    @DeleteMapping("/remove")
+	    public void remove(@RequestHeader("Authorization") String token,
+	                       @RequestParam Long productId) {
+	        String username = cartService.authorizeAndGetUsername(token, "CUSTOMER");
+	        System.out.println(">> Removing productId: " + productId + " for user: " + username);
+	        cartService.removeFromCart(username, productId);
+	    }
+	
+	    @GetMapping("/total")
+	    public double totalAmount(@RequestHeader("Authorization") String token) {
+	        String username = cartService.authorizeAndGetUsername(token, "CUSTOMER");
+	        return cartService.calculateTotalAmount(username);
+	    }
+	
+	    @GetMapping("/grouped-total")
+	    public Map<String, Double> groupedAmount(@RequestHeader("Authorization") String token) {
+	        String username = cartService.authorizeAndGetUsername(token, "CUSTOMER");
+	        return cartService.calculateAmountPerItemGroup(username);
+	    }
+	    
+	    @PutMapping("/update")
+	    public CartItem updateQuantity(@RequestHeader("Authorization") String token,
+	                                   @RequestParam Long productId,
+	                                   @RequestParam int quantity) {
+	    	 String username = cartService.authorizeAndGetUsername(token, "CUSTOMER");
+	        return cartService.updateCartItemQuantity(username, productId, quantity);
+	    }
+	}

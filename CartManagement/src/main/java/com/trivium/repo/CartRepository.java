@@ -1,0 +1,26 @@
+package com.trivium.repo;
+
+import com.trivium.entity.CartItem;
+
+import jakarta.transaction.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface CartRepository extends JpaRepository<CartItem, Long> {
+
+    List<CartItem> findByUsername(String username);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM CartItem c WHERE c.username = :username AND c.productId = :productId")
+    void deleteByUsernameAndProductId(@Param("username") String username, @Param("productId") Long productId);
+
+    Optional<CartItem> findByUsernameAndProductId(String username, Long productId);
+
+}

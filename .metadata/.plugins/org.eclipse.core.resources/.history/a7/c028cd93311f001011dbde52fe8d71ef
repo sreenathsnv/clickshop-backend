@@ -1,0 +1,16 @@
+package com.trivium.repo;
+
+import java.util.List;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.trivium.entity.UserReview;
+
+public interface UserReviewRepository extends JpaRepository<UserReview, Integer> {
+	List<UserReview> findByProductId(Long productId);
+
+    List<Review> findByUserId(Long userId);
+
+    Optional<Review> findByUserIdAndProductId(Long userId, Long productId);
+
+}

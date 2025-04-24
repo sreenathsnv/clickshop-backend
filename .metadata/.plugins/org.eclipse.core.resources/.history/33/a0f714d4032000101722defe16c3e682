@@ -1,0 +1,147 @@
+package com.trivium.service;
+
+
+import com.trivium.dto.ProductStatsDTO;
+import com.trivium.entity.Product;
+import com.trivium.repo.ProductRepository;
+
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class ProductServiceImpl implements ProductService {
+
+	@Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    // Auth service URL (adjust port as per your setup)
+    private static final String AUTH_SERVICE_URL = "http://localhost:8183/api/auth/validate";
+
+    // Class to map the auth service response
+    private static class AuthValidationResponse {
+        private String username;
+        private String role;
+        private boolean valid;
+
+        public String getUsername() { return username; }
+        public String getRole() { return role; }
+        public boolean isValid() { return valid; }
+        public void setUsername(String username) { this.username = username; }
+        public void setRole(String role) { this.role = role; }
+        public void setValid(boolean valid) { this.valid = valid; }
+    }
+
+    // Helper method to validate token and check role
+    private void authorizeRequest(String token, String requiredRole) {
+        if (token == null || !token.startsWith("Bearer ")) {
+        	System.out.println("token is null");
+            throw new RuntimeException("Invalid or missing authorization token");
+        }
+
+        // Prepare HTTP request to auth service
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", token);
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        // Call auth service to validate token
+        ResponseEntity<AuthValidationResponse> response = restTemplate.exchange(
+            AUTH_SERVICE_URL,
+            HttpMethod.GET,
+            entity,
+            AuthValidationResponse.class
+        );
+
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new RuntimeException("Token validation failed");
+        }
+
+        AuthValidationResponse authResponse = response.getBody();
+        if (!authResponse.isValid()) {
+            throw new RuntimeException("Invalid or expired token");
+        }
+
+        if (!requiredRole.equals(authResponse.getRole())) {
+            throw new RuntimeException("Unauthorized: Requires " + requiredRole + " role");
+        }
+    }
+
+    @Override
+    public List<Product> getAllProducts() {
+        // No authorization required
+        return productRepository.findAll();
+    }
+
+    @Override
+    public Optional<Product> getProductById(Long id) {
+        // No authorization required
+        return productRepository.findById(id);
+    }
+
+
+
+    // Role-based methods with token
+    @Override
+    public Product createProduct(Product product, String token) {
+        authorizeRequest(token, "ADMIN");
+        product.setAvailable(true);
+        return productRepository.save(product);
+    }
+
+    public Product updateProduct(Long id, Product updated, String token) {
+        authorizeRequest(token, "ADMIN");
+        Product product = productRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Product not found"));
+
+        product.setName(updated.getName());
+        product.setDescription(updated.getDescription());
+        product.setPrice(updated.getPrice());
+        product.setQuantity(updated.getQuantity());
+        product.setAvailable(updated.getAvailable());
+        product.setImageURL(updated.getImageURL());
+
+        return productRepository.save(product);
+    }
+
+    public void deleteProduct(Long id, String token) {
+        authorizeRequest(token, "ADMIN");
+        productRepository.deleteById(id);
+    }
+    
+    public ProductStatsDTO getProductStatistics(String token) {
+        authorizeRequest(token, "ADMIN");
+
+        long total = productRepository.count();
+        long available = productRepository.countByAvailable(true);
+        long outOfStock = productRepository.countByAvailable(false);
+
+        return new ProductStatsDTO(total, available, outOfStock);
+    }
+
+	@Override
+	public List<Product> searchProducts(String str) {
+	    if (str == null || str.trim().isEmpty()) {
+	        return productRepository.findAll();  // return all products if no query
+	    }
+	    return productRepository.findByNameContainingIgnoreCaseOrDescriptionContainingIgnoreCase(str, str);
+	}
+	
+	@Override
+	public List<String> getAvailableCategories() {
+        return productRepository.findAvailableCategories();
+    }
+
+
+}
+
