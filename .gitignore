@@ -1,0 +1,68 @@
+# Java
+*.class
+*.jar
+*.war
+*.ear
+
+# Logs
+*.log
+
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.properties
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+.gradle-cache/
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+*.class
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+
+# Docker
+*.pid
+*.tar
+
+
+# IntelliJ specific
+out/
+*.iws
+.idea/
+*.ipr
+*.iml
+
+# Eclipse specific
+.settings/
+.project
+.classpath
+
+# VS Code specific
+.vscode/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Spring Boot devtools
+.spring-boot-devtools.properties
+
