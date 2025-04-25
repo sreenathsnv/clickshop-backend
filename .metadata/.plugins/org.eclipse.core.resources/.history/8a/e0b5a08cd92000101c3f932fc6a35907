@@ -1,0 +1,8 @@
+spring.application.name=ServiceRegistry
+
+server.port=8761
+
+eureka.client.register-with-eureka=false
+eureka.client.fetch-registry=false
+
+spring.application.name=eureka-server spring.profiles.active=docker server.port=8761 eureka.client.register-with-eureka=true eureka.client.fetch-registry=true management.endpoints.web.exposure.include=health

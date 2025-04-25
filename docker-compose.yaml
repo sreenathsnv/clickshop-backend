@@ -4,12 +4,12 @@ services:
   mysql:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: 12345
+      MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: appdb
-      MYSQL_USER: root
-      MYSQL_PASSWORD: 12345
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: appuserpassword
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     networks:
@@ -20,104 +20,113 @@ services:
       timeout: 5s
       retries: 5
 
-  eureka-server:
-    image: eureka-server:latest
+  ServiceRegistry:
+    image: serviceregistry:latest
     build:
-      context: ./eureka-server
+      context: ./ServiceRegistry
       dockerfile: Dockerfile
     ports:
       - "8761:8761"
     environment:
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
-      SPRING_APPLICATION_NAME: eureka-server
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://ServiceRegistry:8761/eureka/
+      SPRING_APPLICATION_NAME: ServiceRegistry
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      test: curl -fs http://localhost:8761/actuator/health || exit 1
       interval: 10s
       timeout: 5s
-      retries: 5
-  
-  authmanagermicroservice:
+      retries: 10
+      start_period: 20s
+
+
+  AuthManagerMicroservice:
     image: authmanagermicroservice:latest
     build:
-      context: ./authmanagermicroservice
+      context: ./AuthManagerMicroservice
       dockerfile: Dockerfile
     ports:
       - "8183:8080"
     environment:
+      SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/appdb?useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: appuser
       SPRING_DATASOURCE_PASSWORD: appuserpassword
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://ServiceRegistry:8761/eureka/
       SPRING_APPLICATION_NAME: AUTHMANAGERMICROSERVICE
+      ADMIN_EMAIL: admin
+      ADMIN_PASSWORD: admin@123secure
     depends_on:
       mysql:
         condition: service_healthy
-      eureka-server:
+      ServiceRegistry:
         condition: service_healthy
     networks:
       - app-network
 
-  cart-management:
+  CartManagement:
     image: cart-management:latest
     build:
-      context: ./cart-management
+      context: ./CartManagement
       dockerfile: Dockerfile
     ports:
       - "8184:8080"
     environment:
+      SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/appdb?useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: appuser
       SPRING_DATASOURCE_PASSWORD: appuserpassword
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://ServiceRegistry:8761/eureka/
       SPRING_APPLICATION_NAME: CART-MANAGEMENT
     depends_on:
       mysql:
         condition: service_healthy
-      eureka-server:
+      ServiceRegistry:
         condition: service_healthy
     networks:
       - app-network
 
-  order-management:
+  OrderManagement:
     image: order-management:latest
     build:
-      context: ./order-management
+      context: ./OrderManagement
       dockerfile: Dockerfile
     ports:
       - "8188:8080"
     environment:
+      SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/appdb?useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: appuser
       SPRING_DATASOURCE_PASSWORD: appuserpassword
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://ServiceRegistry:8761/eureka/
       SPRING_APPLICATION_NAME: ORDER-MANAGEMENT
     depends_on:
       mysql:
         condition: service_healthy
-      eureka-server:
+      ServiceRegistry:
         condition: service_healthy
     networks:
       - app-network
 
-  product-microservice:
+  ProductMicroservice:
     image: product-microservice:latest
     build:
-      context: ./product-microservice
+      context: ./ProductMicroservice
       dockerfile: Dockerfile
     ports:
       - "8185:8080"
     environment:
+      SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/appdb?useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: appuser
       SPRING_DATASOURCE_PASSWORD: appuserpassword
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://ServiceRegistry:8761/eureka/
       SPRING_APPLICATION_NAME: PRODUCT-MICROSERVICE
     depends_on:
       mysql:
         condition: service_healthy
-      eureka-server:
+      ServiceRegistry:
         condition: service_healthy
     networks:
       - app-network

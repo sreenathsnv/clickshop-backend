@@ -1,0 +1,3 @@
+microservice.cart-management.url=http://CART-MANAGEMENT
+microservice.order-management.url=http://ORDER-MANAGEMENT
+microservice.product-microservice.url=http://PRODUCT-MICROSERVICE

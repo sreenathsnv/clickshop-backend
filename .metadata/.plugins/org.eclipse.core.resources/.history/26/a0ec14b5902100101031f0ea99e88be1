@@ -1,0 +1,57 @@
+# ================================
+# Spring Boot Application Config
+# ================================
+spring.application.name=AUTHMANAGERMICROSERVICE
+spring.profiles.active=docker
+
+# ================================
+# Server Configuration
+# ================================
+server.port=8080
+
+# ================================
+# Service Discovery - Eureka Client
+# ================================
+# For local testing use: http://localhost:8761/eureka
+eureka.client.service-url.defaultZone=http://eureka-server:8761/eureka/
+
+# ================================
+# Database Configuration - MySQL
+# ================================
+# Use these for local database setup:
+# spring.datasource.url=jdbc:mysql://localhost:3306/ecomdbv5?useSSL=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
+# spring.datasource.username=root
+# spring.datasource.password=12345
+
+# Docker container credentials (active)
+spring.datasource.username=appuser
+spring.datasource.password=appuserpassword
+
+# ================================
+# JPA & Hibernate Configuration
+# ================================
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+
+# ================================
+# JWT Configuration
+# ================================
+jwt.secret=+Vx0ZGm8P9hLgK+e3m5W9I2Q3V1sE+5OVFXyjEJhYRY=
+# JWT expiration time in milliseconds (24 hours)
+jwt.expiration=86400000
+
+# ================================
+# Logging
+# ================================
+logging.level.org.springframework=DEBUG
+
+# ================================
+# Actuator Configuration
+# ================================
+management.endpoints.web.exposure.include=health
+
+
+#Demo Admin Creds
+
+admin.username=
+

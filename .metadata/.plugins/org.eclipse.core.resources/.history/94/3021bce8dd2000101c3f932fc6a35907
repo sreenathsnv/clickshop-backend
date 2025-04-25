@@ -1,0 +1,384 @@
+// OrderServiceImpl.java
+package com.trivium.service;
+
+import com.trivium.dto.CartItemDTO;
+import com.trivium.dto.OrderDTO;
+import com.trivium.dto.OrderItemDTO;
+import com.trivium.dto.OrderStatsDTO;
+import com.trivium.dto.ProductDTO;
+import com.trivium.entity.Order;
+import com.trivium.entity.OrderItem;
+import com.trivium.repo.OrderRepository;
+import com.trivium.service.OrderService;
+
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+public class OrderServiceImpl implements OrderService {
+    
+    @Autowired
+    private OrderRepository orderRepository;
+    
+    @Autowired
+    private RestTemplate restTemplate;
+    
+//    @Value("${auth.service.url}")
+    @Value("${microservice.auth-manager.url}")
+    private String authServiceUrl;
+    
+    
+//    @Value("${product.service.url}")
+    @Value("${microservice.auth-manager.url}")
+    private String productServiceUrl;
+    
+//    @Value("${cart.service.url}")
+    @Value("${microservice.auth-manager.url}")
+    private String cartServiceUrl;
+    
+    @Value("${order.status.active}")
+    private String statusActive;
+    
+    @Value("${order.status.cancelled}")
+    private String statusCancelled;
+
+    
+    private static class AuthValidationResponse {
+        private String username;
+        private String role;
+        private boolean valid;
+
+        public String getUsername() { return username; }
+        public String getRole() { return role; }
+        public boolean isValid() { return valid; }
+        public void setUsername(String username) { this.username = username; }
+        public void setRole(String role) { this.role = role; }
+        public void setValid(boolean valid) { this.valid = valid; }
+    }
+    
+    private Map<String, Object> validateToken(String token) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", token);
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        
+        return restTemplate.exchange(
+            authServiceUrl,
+            HttpMethod.GET,
+            entity,
+            Map.class
+        ).getBody();
+    }
+    
+    
+    private void authorizeRequest(String token, String requiredRole) {
+        if (token == null || !token.startsWith("Bearer ")) {
+            System.out.println("token is null");
+            throw new RuntimeException("Invalid or missing authorization token");
+        }
+
+        Map<String, Object> authMap = validateToken(token);
+
+        
+        AuthValidationResponse authResponse = new AuthValidationResponse();
+        authResponse.setUsername((String) authMap.get("username"));
+        authResponse.setRole((String) authMap.get("role"));
+        authResponse.setValid(Boolean.TRUE.equals(authMap.get("valid")));
+
+        if (!authResponse.isValid()) {
+            throw new RuntimeException("Invalid or expired token");
+        }
+
+        if (!requiredRole.equals(authResponse.getRole())) {
+            throw new RuntimeException("Unauthorized: Requires " + requiredRole + " role");
+        }
+    }
+
+
+    @Override
+    public OrderDTO createOrderFromProduct(String token, Long productId, Integer quantity) {
+        Map<String, Object> authResponse = validateToken(token);
+        if (!(Boolean) authResponse.get("valid")) {
+            throw new RuntimeException("Invalid token");
+        }
+        
+        String username = (String) authResponse.get("username");
+        quantity = (quantity == null || quantity < 1) ? 1 : quantity;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", token);
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        
+        // Using ProductDTO instead of Product entity
+        ResponseEntity<ProductDTO> productResponse = restTemplate.exchange(
+            productServiceUrl + "/" + productId,
+            HttpMethod.GET,
+            entity,
+            ProductDTO.class
+        );
+        
+        if (!productResponse.getStatusCode().is2xxSuccessful() || productResponse.getBody() == null) {
+            throw new RuntimeException("Product not found or unavailable");
+        }
+        
+        ProductDTO product = productResponse.getBody();
+
+        Order order = new Order();
+        order.setUsername(username);
+        order.setStatus(statusActive);
+        order.setCreatedAt(LocalDateTime.now());
+        
+        OrderItem orderItem = new OrderItem();
+        orderItem.setProductId(productId);
+        orderItem.setQuantity(quantity);
+        orderItem.setPrice(product.getPrice());
+        
+        order.setOrderItems(Collections.singletonList(orderItem));
+        order.setTotalAmount(product.getPrice() * quantity);
+     
+        String updateQuantityUrl = productServiceUrl + "/reduceQuantity/" + productId + "?amount=" + quantity;
+        restTemplate.exchange(updateQuantityUrl, HttpMethod.PUT, entity, Void.class);
+
+        return convertToDTO(orderRepository.save(order));
+        
+    }
+    @Override
+    public OrderDTO createOrderFromCart(String token) {
+        Map<String, Object> authResponse = validateToken(token);
+        if (!(Boolean) authResponse.get("valid")) {
+            throw new RuntimeException("Invalid token");
+        }
+
+        String username = (String) authResponse.get("username");
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", token);
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<CartItemDTO[]> cartResponse = restTemplate.exchange(
+            cartServiceUrl,
+            HttpMethod.GET,
+            entity,
+            CartItemDTO[].class
+        );
+
+        if (!cartResponse.getStatusCode().is2xxSuccessful() || cartResponse.getBody() == null) {
+            throw new RuntimeException("Failed to retrieve cart items");
+        }
+
+        List<CartItemDTO> cartItems = Arrays.asList(cartResponse.getBody());
+
+        if (cartItems.isEmpty()) {
+            throw new RuntimeException("Cart is empty");
+        }
+
+        // Build the Order
+        Order order = new Order();
+        order.setUsername(username);
+        order.setStatus(statusActive);
+        order.setCreatedAt(LocalDateTime.now());
+
+        List<OrderItem> orderItems = cartItems.stream()
+            .map(cartItem -> {
+                OrderItem orderItem = new OrderItem();
+                orderItem.setProductId(cartItem.getProductId());
+                orderItem.setQuantity(cartItem.getQuantity());
+                orderItem.setPrice(cartItem.getPrice());
+                return orderItem;
+            })
+            .collect(Collectors.toList());
+
+        order.setOrderItems(orderItems);
+        order.setTotalAmount(cartItems.stream()
+            .mapToDouble(item -> item.getPrice() * item.getQuantity())
+            .sum());
+
+        Order savedOrder = orderRepository.save(order);
+        
+        
+
+        // Remove items from the cart
+        for (CartItemDTO cartItem : cartItems) {
+            String removeUrl = cartServiceUrl + "/remove?productId=" + cartItem.getProductId();
+         // Reduce product quantity after order
+            String updateQuantityUrl = productServiceUrl + "/reduceQuantity/" + cartItem.getProductId() + "?amount=" + cartItem.getQuantity();
+            restTemplate.exchange(updateQuantityUrl, HttpMethod.PUT, entity, Void.class);
+
+            HttpEntity<Void> removeEntity = new HttpEntity<>(headers);
+            restTemplate.exchange(removeUrl, HttpMethod.DELETE, removeEntity, Void.class);
+        }
+
+        return convertToDTO(savedOrder);
+    }
+
+    @Override
+    public List<OrderDTO> getAllOrders(String token) {
+        Map<String, Object> authResponse = validateToken(token);
+        if (!(Boolean) authResponse.get("valid")) {
+            throw new RuntimeException("Invalid token");
+        }
+        
+        String username = (String) authResponse.get("username");
+        return orderRepository.findByUsername(username).stream()
+            .map(this::convertToDTO)
+            .collect(Collectors.toList());
+    }
+
+    @Override
+    public OrderDTO getOrderById(String token, Long orderId) {
+        Map<String, Object> authResponse = validateToken(token);
+        if (!(Boolean) authResponse.get("valid")) {
+            throw new RuntimeException("Invalid token");
+        }
+        
+        String username = (String) authResponse.get("username");
+        Order order = orderRepository.findById(orderId)
+            .filter(o -> o.getUsername().equals(username))
+            .orElseThrow(() -> new RuntimeException("Order not found"));
+        return convertToDTO(order);
+    }
+
+    @Override
+    public OrderDTO cancelOrder(String token, Long orderId) {
+        Map<String, Object> authResponse = validateToken(token);
+        if (!(Boolean) authResponse.get("valid")) {
+            throw new RuntimeException("Invalid token");
+        }
+
+        String username = (String) authResponse.get("username");
+        Order order = orderRepository.findById(orderId)
+            .filter(o -> o.getUsername().equals(username))
+            .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        if (!order.getStatus().equals(statusActive)) {
+            throw new RuntimeException("Only active orders can be cancelled");
+        }
+
+        order.setStatus(statusCancelled);
+        order.setUpdatedAt(LocalDateTime.now());
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", token);
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        for (OrderItem item : order.getOrderItems()) {
+            String increaseQuantityUrl = productServiceUrl + "/increaseQuantity/" + item.getProductId()
+                                         + "?amount=" + item.getQuantity();
+            restTemplate.exchange(increaseQuantityUrl, HttpMethod.PUT, entity, Void.class);
+        }
+
+        return convertToDTO(orderRepository.save(order));
+    }
+
+
+    @Override
+    public OrderStatsDTO getOrderStats(String token) {
+        Map<String, Object> authResponse = validateToken(token);
+        if (!(Boolean) authResponse.get("valid")) {
+            throw new RuntimeException("Invalid token");
+        }
+
+        authorizeRequest(token, "ADMIN");
+
+        List<Order> orders = orderRepository.findAll();
+
+        OrderStatsDTO stats = new OrderStatsDTO();
+        stats.setTotalOrders((long) orders.size());
+        stats.setTotalAmount(
+            orders.stream().mapToDouble(Order::getTotalAmount).sum()
+        );
+        stats.setActiveOrders(
+            orders.stream().filter(o -> o.getStatus().equals(statusActive)).count()
+        );
+        stats.setCancelledOrders(
+            orders.stream().filter(o -> o.getStatus().equals(statusCancelled)).count()
+        );
+
+        // Revenue by month (e.g. Jan, Feb, ...)
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM");
+
+        Map<String, Double> revenueByMonth = orders.stream()
+            .filter(o -> o.getCreatedAt() != null) // null-safety
+            .collect(Collectors.groupingBy(
+                o -> o.getCreatedAt().format(formatter), // Convert to "Jan", "Feb", etc.
+                TreeMap::new, // Sorted map
+                Collectors.summingDouble(o -> o.getTotalAmount() != null ? o.getTotalAmount() : 0.0)
+            ));
+
+
+        stats.setRevenueByMonth(revenueByMonth);
+
+        return stats;
+    }
+
+    private OrderDTO convertToDTO(Order order) {
+        OrderDTO dto = new OrderDTO();
+        dto.setId(order.getId());
+        dto.setUsername(order.getUsername());
+        dto.setStatus(order.getStatus());
+        dto.setTotalAmount(order.getTotalAmount());
+        dto.setCreatedAt(order.getCreatedAt());
+        
+        List<OrderItemDTO> itemDTOs = order.getOrderItems().stream()
+            .map(item -> {
+                OrderItemDTO itemDTO = new OrderItemDTO();
+                itemDTO.setProductId(item.getProductId());
+                itemDTO.setQuantity(item.getQuantity());
+                itemDTO.setPrice(item.getPrice());
+                return itemDTO;
+            })
+            .collect(Collectors.toList());
+        
+        dto.setOrderItems(itemDTOs);
+        return dto;
+    }
+    
+    public List<OrderDTO> getAllOrdersAdmin(String token) {
+    	
+    	authorizeRequest(token,"ADMIN");
+        
+        List<Order> orders = orderRepository.findAll();
+
+        return orders.stream()
+            .map(this::convertToDTO)
+            .collect(Collectors.toList());
+    }
+
+
+	@Override
+	public boolean canUserReviewProduct(String token,Long productId) {
+		authorizeRequest(token, "CUSTOMER");
+		
+		
+		String username = validateToken(token).get("username").toString();
+		
+		List<Order> userOrdersAll = orderRepository.findByUsername(username);
+		System.out.println(userOrdersAll);
+		List<Order> userOrders = userOrdersAll.stream()
+			    .filter(order -> order.getOrderItems() != null &&
+			        order.getOrderItems().stream()
+			            .anyMatch(item -> item.getProductId() != null &&
+			                              item.getProductId().equals(productId)))
+			    .toList();
+		 System.out.println("order with the product "+userOrders);
+	    for (Order order : userOrders) {
+	        if (!order.getStatus().equalsIgnoreCase("CANCELLED")
+	            && order.getCreatedAt().isBefore(LocalDateTime.now())) {
+	        	System.out.println("--------------------->true!!!");
+	            return true;
+	        }
+	    }
+	    System.out.println("--------------------->false!!!");
+	    return false;
+	}
+}

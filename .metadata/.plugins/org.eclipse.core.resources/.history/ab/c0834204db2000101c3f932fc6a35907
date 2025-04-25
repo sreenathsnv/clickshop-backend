@@ -1,0 +1,32 @@
+spring.application.name=Order-Management
+
+# Server Configuration
+server.port=8188
+
+#Service Registry
+eureka.client.service-url.defaultZone=http://localhost:8761/eureka
+
+# MySQL Database Configuration
+
+spring.datasource.url=jdbc:mysql://localhost:3306/ecomdbv5?useSSL=false&serverTimezone=UTC
+spring.datasource.username=root
+spring.datasource.password=12345
+
+# Hibernate Properties
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+spring.jpa.hibernate.ddl-auto=update
+
+# Service URL
+# application.properties
+auth.service.url=http://localhost:8183/api/auth/validate
+product.service.url=http://localhost:8185/api/products
+cart.service.url=http://localhost:8184/api/cart
+order.status.active=ACTIVE
+order.status.cancelled=CANCELLED
+
+
+spring.profiles.active=docker
+spring.datasource.username=appuser
+spring.datasource.password=appuserpassword
+
+management.endpoints.web.exposure.include=health

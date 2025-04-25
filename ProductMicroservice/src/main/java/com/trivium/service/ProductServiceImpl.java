@@ -10,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -27,7 +28,8 @@ public class ProductServiceImpl implements ProductService {
     private RestTemplate restTemplate;
 
     // Auth service URL (adjust port as per your setup)
-    private static final String AUTH_SERVICE_URL = "http://localhost:8183/api/auth/validate";
+    @Value("${microservice.auth-manager.url}")
+    private  String AUTH_SERVICE_URL;
 
     // Class to map the auth service response
     private static class AuthValidationResponse {
@@ -57,7 +59,7 @@ public class ProductServiceImpl implements ProductService {
 
         // Call auth service to validate token
         ResponseEntity<AuthValidationResponse> response = restTemplate.exchange(
-            AUTH_SERVICE_URL,
+            AUTH_SERVICE_URL+"/api/auth/validate",
             HttpMethod.GET,
             entity,
             AuthValidationResponse.class

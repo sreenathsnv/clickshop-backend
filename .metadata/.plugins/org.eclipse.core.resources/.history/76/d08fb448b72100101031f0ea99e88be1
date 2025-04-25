@@ -1,0 +1,180 @@
+package com.trivium.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
+
+import com.trivium.dto.ReviewRequest;
+import com.trivium.dto.ReviewResponse;
+import com.trivium.entity.UserReview;
+import com.trivium.repo.UserReviewRepository;
+
+
+@Service
+public class ReviewServiceImpl implements ReviewService {
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Autowired
+    private UserReviewRepository reviewRepo;
+
+    @Value("${microservice.auth-manager.url}")
+    private  String AUTH_SERVICE_URL;
+    
+    @Value("${microservice.auth-manager.url}")
+    private static String ORDER_SERVICE_URL;
+
+    private static class AuthValidationResponse {
+        private String username;
+        private String role;
+        private boolean valid;
+
+        public String getUsername() { return username; }
+        public String getRole() { return role; }
+        public boolean isValid() { return valid; }
+        public void setUsername(String username) { this.username = username; }
+        public void setRole(String role) { this.role = role; }
+        public void setValid(boolean valid) { this.valid = valid; }
+    }
+
+    private String validateAndExtractUsername(String token) {
+        if (token == null || !token.startsWith("Bearer ")) {
+            throw new RuntimeException("Invalid or missing authorization token: " + token);
+        }
+
+        System.out.println("Token being sent: " + token);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", token);
+        headers.set("Content-Type", "application/json"); // Add if required by auth service
+        System.out.println("Headers: " + headers);
+
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<AuthValidationResponse> response = restTemplate.exchange(
+                    AUTH_SERVICE_URL + "/api/auth/validate",
+                    HttpMethod.GET,
+                    entity,
+                    AuthValidationResponse.class
+            );
+
+            System.out.println("Auth Response Code: " + response.getStatusCode());
+            System.out.println("Auth Response Body: " + response.getBody());
+
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null || !response.getBody().isValid()) {
+                throw new RuntimeException("Token validation failed: " + response.getBody());
+            }
+
+            return response.getBody().getUsername();
+        } catch (HttpClientErrorException e) {
+            System.out.println("HTTP Error: " + e.getStatusCode());
+            System.out.println("Error Response Body: " + e.getResponseBodyAsString());
+            throw new RuntimeException("Token validation failed: " + e.getMessage(), e);
+        }
+    }
+
+    private boolean hasUserCompletedValidOrder(String token, Long productId) {
+        String url = ORDER_SERVICE_URL+"/api/orders/validate-review" + "?productId=" + productId;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", token);
+
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Boolean> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    Boolean.class
+            );
+
+            System.out.println("Order Service Response Code: " + response.getStatusCode());
+            System.out.println("Order Service Body: " + response.getBody());
+
+            return response.getStatusCode().is2xxSuccessful() && Boolean.TRUE.equals(response.getBody());
+        } catch (Exception e) {
+            e.printStackTrace(); // good for debugging
+            throw new RuntimeException("Failed to validate order: " + e.getMessage(), e);
+        }
+    }
+
+
+    public ReviewResponse addReview(String token, Long productId, ReviewRequest request) {
+        String username = validateAndExtractUsername(token);
+
+        if (!hasUserCompletedValidOrder(token, productId)) {
+            throw new RuntimeException("User has not purchased or has canceled the order. Cannot review.");
+        }
+
+        UserReview review = new UserReview();
+        review.setUserName(username);
+        review.setProductId(productId);
+        review.setRating(request.getRating());
+        review.setComment(request.getComment());
+
+        reviewRepo.save(review);
+        return ReviewResponse.from(review, true);
+    }
+
+    public ReviewResponse editReview(Long reviewId, String token, ReviewRequest request) {
+        String username = validateAndExtractUsername(token);
+
+        UserReview review = reviewRepo.findById(reviewId)
+            .orElseThrow(() -> new RuntimeException("Review not found"));
+
+        if (!review.getUserName().equals(username)) {
+            throw new RuntimeException("You do not have permission to edit this review.");
+        }
+
+        review.setRating(request.getRating());
+        review.setComment(request.getComment());
+        reviewRepo.save(review);
+        return ReviewResponse.from(review, true);
+    }
+
+    public void deleteReview(Long reviewId, String token) {
+        String username = validateAndExtractUsername(token);
+
+        UserReview review = reviewRepo.findById(reviewId)
+            .orElseThrow(() -> new RuntimeException("Review not found"));
+
+        if (!review.getUserName().equals(username)) {
+            throw new RuntimeException("You do not have permission to delete this review.");
+        }
+
+        reviewRepo.delete(review);
+    }
+
+    public List<ReviewResponse> getReviewsByProduct(Long productId, String token) {
+        String username = validateAndExtractUsername(token);
+
+        List<UserReview> reviews = reviewRepo.findByProductId(productId);
+
+        return reviews.stream()
+            .map(review -> ReviewResponse.from(review, review.getUserName().equals(username)))
+            .collect(Collectors.toList());
+    }
+
+    public List<ReviewResponse> getReviewsByUser(String token) {
+        String username = validateAndExtractUsername(token);
+
+        List<UserReview> reviews = reviewRepo.findByUsername(username);
+
+        return reviews.stream()
+            .map(review -> ReviewResponse.from(review, review.getUserName().equals(username)))
+            .collect(Collectors.toList());
+    }
+}

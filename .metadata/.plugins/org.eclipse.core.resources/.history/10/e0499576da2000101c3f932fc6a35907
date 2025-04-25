@@ -1,0 +1,13 @@
+package snippet;
+
+public class Snippet {
+	spring.application.name=CART-MANAGEMENT
+	spring.profiles.active=docker
+	spring.datasource.username=appuser
+	spring.datasource.password=appuserpassword
+	spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+	spring.jpa.hibernate.ddl-auto=update
+	server.port=8080
+	management.endpoints.web.exposure.include=health
+}
+

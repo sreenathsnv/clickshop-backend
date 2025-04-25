@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -28,8 +29,11 @@ public class ReviewServiceImpl implements ReviewService {
     @Autowired
     private UserReviewRepository reviewRepo;
 
-    private static final String AUTH_SERVICE_URL = "http://localhost:8183/api/auth/validate";
-    private static final String ORDER_SERVICE_URL = "http://localhost:8188/api/orders/validate-review";
+    @Value("${microservice.auth-manager.url}")
+    private  String AUTH_SERVICE_URL;
+    
+    @Value("${microservice.auth-manager.url}")
+    private  String ORDER_SERVICE_URL;
 
     private static class AuthValidationResponse {
         private String username;
@@ -60,7 +64,7 @@ public class ReviewServiceImpl implements ReviewService {
 
         try {
             ResponseEntity<AuthValidationResponse> response = restTemplate.exchange(
-                    AUTH_SERVICE_URL,
+                    AUTH_SERVICE_URL + "/api/auth/validate",
                     HttpMethod.GET,
                     entity,
                     AuthValidationResponse.class
@@ -82,7 +86,7 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     private boolean hasUserCompletedValidOrder(String token, Long productId) {
-        String url = ORDER_SERVICE_URL + "?productId=" + productId;
+        String url = ORDER_SERVICE_URL+"/api/orders/validate-review" + "?productId=" + productId;
 
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", token);

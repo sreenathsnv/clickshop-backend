@@ -22,10 +22,12 @@ public class CartServiceImpl implements CartService {
     @Autowired
     private RestTemplate restTemplate;
 
-    @Value("${auth.service.url}")
+//    @Value("${auth.service.url}")
+    @Value("${microservice.auth-manager.url}")
     private String AUTH_SERVICE_URL;
 
-    @Value("${product.service.url}")
+//    @Value("${product.service.url}")
+    @Value("${microservice.product-microservice.url}")
     private String PRODUCT_SERVICE_URL;
 
     // --- Updated to return username ---

@@ -35,13 +35,17 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private RestTemplate restTemplate;
     
-    @Value("${auth.service.url}")
+//    @Value("${auth.service.url}")
+    @Value("${microservice.auth-manager.url}")
     private String authServiceUrl;
     
-    @Value("${product.service.url}")
+    
+//    @Value("${product.service.url}")
+    @Value("${microservice.product-microservice.url}")
     private String productServiceUrl;
     
-    @Value("${cart.service.url}")
+//    @Value("${cart.service.url}")
+    @Value("${microservice.cart-management.url}")
     private String cartServiceUrl;
     
     @Value("${order.status.active}")
@@ -70,7 +74,7 @@ public class OrderServiceImpl implements OrderService {
         HttpEntity<String> entity = new HttpEntity<>(headers);
         
         return restTemplate.exchange(
-            authServiceUrl,
+            authServiceUrl+"/api/auth/validate",
             HttpMethod.GET,
             entity,
             Map.class
@@ -118,7 +122,7 @@ public class OrderServiceImpl implements OrderService {
         
         // Using ProductDTO instead of Product entity
         ResponseEntity<ProductDTO> productResponse = restTemplate.exchange(
-            productServiceUrl + "/" + productId,
+            productServiceUrl + "/api/products/" + productId,
             HttpMethod.GET,
             entity,
             ProductDTO.class
@@ -143,7 +147,7 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderItems(Collections.singletonList(orderItem));
         order.setTotalAmount(product.getPrice() * quantity);
      
-        String updateQuantityUrl = productServiceUrl + "/reduceQuantity/" + productId + "?amount=" + quantity;
+        String updateQuantityUrl = productServiceUrl + "/api/products/reduceQuantity/" + productId + "?amount=" + quantity;
         restTemplate.exchange(updateQuantityUrl, HttpMethod.PUT, entity, Void.class);
 
         return convertToDTO(orderRepository.save(order));
@@ -162,7 +166,7 @@ public class OrderServiceImpl implements OrderService {
         HttpEntity<String> entity = new HttpEntity<>(headers);
 
         ResponseEntity<CartItemDTO[]> cartResponse = restTemplate.exchange(
-            cartServiceUrl,
+            cartServiceUrl +"/api/cart",
             HttpMethod.GET,
             entity,
             CartItemDTO[].class
@@ -205,9 +209,9 @@ public class OrderServiceImpl implements OrderService {
 
         // Remove items from the cart
         for (CartItemDTO cartItem : cartItems) {
-            String removeUrl = cartServiceUrl + "/remove?productId=" + cartItem.getProductId();
+            String removeUrl = cartServiceUrl + "/api/cart/remove?productId=" + cartItem.getProductId();
          // Reduce product quantity after order
-            String updateQuantityUrl = productServiceUrl + "/reduceQuantity/" + cartItem.getProductId() + "?amount=" + cartItem.getQuantity();
+            String updateQuantityUrl = productServiceUrl + "/api/products/reduceQuantity/" + cartItem.getProductId() + "?amount=" + cartItem.getQuantity();
             restTemplate.exchange(updateQuantityUrl, HttpMethod.PUT, entity, Void.class);
 
             HttpEntity<Void> removeEntity = new HttpEntity<>(headers);
@@ -268,7 +272,7 @@ public class OrderServiceImpl implements OrderService {
         HttpEntity<String> entity = new HttpEntity<>(headers);
 
         for (OrderItem item : order.getOrderItems()) {
-            String increaseQuantityUrl = productServiceUrl + "/increaseQuantity/" + item.getProductId()
+            String increaseQuantityUrl = productServiceUrl + "/api/products/increaseQuantity/" + item.getProductId()
                                          + "?amount=" + item.getQuantity();
             restTemplate.exchange(increaseQuantityUrl, HttpMethod.PUT, entity, Void.class);
         }

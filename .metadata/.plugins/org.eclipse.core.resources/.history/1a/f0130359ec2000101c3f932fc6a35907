@@ -1,0 +1,8 @@
+spring.datasource.url=jdbc:mysql://mysql:3306/appdb?useSSL=false&allowPublicKeyRetrieval=true
+eureka.client.service-url.defaultZone=http://eureka-server:8761/eureka/
+microservice.auth-manager.url=http://AUTHMANAGERMICROSERVICE
+microservice.cart-management.url=http://CART-MANAGEMENT
+microservice.product-microservice.url=http://PRODUCT-MICROSERVICE
+
+order.status.active=ACTIVE
+order.status.cancelled=CANCELLED
